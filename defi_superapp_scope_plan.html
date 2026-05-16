@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DeFi Super-App — Build Plan</title>
+  <link rel="stylesheet" href="plan.css" />
+</head>
+<body>
+
+<div class="container">
+
+  <!-- ══════════════════════════════════════
+       HEADER
+  ══════════════════════════════════════ -->
+  <header>
+    <p class="header-eyebrow">Blockchain Technologies 2 · Capstone</p>
+    <h1>DeFi <span>Super-App</span><br>Build Plan</h1>
+    <div class="header-meta">
+      <span class="badge accent">Arbitrum Sepolia</span>
+      <span class="badge">3 people</span>
+      <span class="badge">Foundry + React + The Graph</span>
+      <span class="badge">AMM · Vault · DAO</span>
+    </div>
+  </header>
+
+  <!-- ══════════════════════════════════════
+       PROGRESS
+  ══════════════════════════════════════ -->
+  <div class="progress-wrap">
+    <div class="progress-stats">
+      <div class="stat">
+        <span class="stat-label">Tasks done</span>
+        <span class="stat-value accent" id="stat-done">0 / 0</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Completion</span>
+        <span class="stat-value" id="stat-pct">0%</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Sections</span>
+        <span class="stat-value">7</span>
+      </div>
+    </div>
+    <div class="progress-bar-wrap">
+      <div class="progress-bar-track">
+        <div class="progress-bar-fill" id="progress-fill"></div>
+      </div>
+      <p class="progress-pct" id="progress-pct-label">0% complete</p>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════
+       CALLOUT — key notes
+  ══════════════════════════════════════ -->
+  <div class="callout warn">
+    <p class="callout-title">⚠ Critical build notes</p>
+    <ul>
+      <li>Event signatures in contracts are a dependency for both the subgraph and frontend. Lock them first, change later with care.</li>
+      <li>The Yul benchmark only counts if you have before/after gas numbers in the gas report.</li>
+      <li>Slither runs in CI from day one — do not leave High/Medium findings to accumulate.</li>
+      <li>Governance voting delay (1 day) + voting period (1 week) cannot elapse in real time. Tests use <code>vm.warp</code>; document this explicitly.</li>
+      <li>Write the VaultV2 stub immediately after V1 to prove the storage layout — catching a collision late costs a full refactor.</li>
+    </ul>
+  </div>
+
+  <!-- ══════════════════════════════════════
+       RESET BUTTON
+  ══════════════════════════════════════ -->
+  <div style="display:flex; justify-content:flex-end; margin-bottom: var(--s3);">
+    <button class="filter-btn" id="reset-btn" title="Clear all checked items">↺ Reset progress</button>
+  </div>
+
+  <!-- ══════════════════════════════════════
+       TABS
+  ══════════════════════════════════════ -->
+  <nav class="tabs" id="tabs" aria-label="Plan sections"></nav>
+
+  <!-- ══════════════════════════════════════
+       CONTENT AREA
+  ══════════════════════════════════════ -->
+  <main id="content" aria-live="polite"></main>
+
+  <!-- ══════════════════════════════════════
+       FOOTER
+  ══════════════════════════════════════ -->
+  <footer>
+    <span class="footer-left">DeFi Super-App · Capstone Build Plan</span>
+    <div class="footer-right">
+      <a class="footer-link" href="https://sepolia.arbiscan.io" target="_blank" rel="noopener">Arbiscan ↗</a>
+      <a class="footer-link" href="https://thegraph.com/studio" target="_blank" rel="noopener">The Graph ↗</a>
+      <a class="footer-link" href="https://docs.chain.link" target="_blank" rel="noopener">Chainlink ↗</a>
+    </div>
+  </footer>
+
+</div><!-- /.container -->
+
+<!-- ══════════════════════════════════════
+     DATA + RENDER LOGIC
+══════════════════════════════════════ -->
+<script>
+const sections = [
+  {
+    id: 'contracts',
+    label: 'Contracts',
+    sectionClass: 'section-contracts',
+    intro: 'Every Solidity file that must exist in contracts/. Names are suggestions — structure is not.',
+    items: [
+      {
+        name: 'GovernanceToken.sol',
+        tool: 'OpenZeppelin ERC20 + ERC20Votes + ERC20Permit',
+        why: 'Governance token. ERC20Votes for voting power snapshots, ERC20Permit for gasless approvals.'
+      },
+      {
+        name: 'TokenFactory.sol',
+        tool: 'Solidity — CREATE and CREATE2 opcodes',
+        why: 'Deploys pool tokens or vault shares. One method uses CREATE, another uses CREATE2 with a pre-computable address.'
+      },
+      {
+        name: 'ChainlinkPriceFeedAdapter.sol',
+        tool: 'Chainlink AggregatorV3Interface',
+        why: 'Wraps Chainlink price feeds. Reverts if updatedAt is older than MAX_STALENESS seconds.'
+      },
+      {
+        name: 'IPriceOracle.sol',
+        tool: 'Solidity interface',
+        why: 'Oracle adapter pattern. Lets you swap the Chainlink adapter for the mock in tests without changing callers.'
+      },
+      {
+        name: 'MockAggregator.sol',
+        tool: 'Solidity',
+        why: 'Implements AggregatorV3Interface for unit tests. Configurable price + timestamp to test staleness logic.'
+      },
+      {
+        name: 'ConstantProductAMM.sol',
+        tool: 'Solidity from scratch · SafeERC20 · ReentrancyGuard',
+        why: 'x·y=k with 0.3% fee, LP tokens (ERC20), slippage protection via minAmountOut. CEI pattern on all state-changing functions.'
+      },
+      {
+        name: 'LendingPool.sol',
+        tool: 'Solidity · IPriceOracle for collateral pricing',
+        why: '(Optional) If you build both: LTV, health factor, liquidation, linear interest rate. Can be a wrapper if AMM is the scratch build.'
+      },
+      {
+        name: 'YieldVault.sol',
+        tool: 'OpenZeppelin ERC4626 + UUPSUpgradeable + Initializable',
+        why: 'Tokenized yield vault wrapping AMM LP tokens. Virtual shares for inflation-attack defense. UUPS proxy for upgradeability.'
+      },
+      {
+        name: 'YieldVaultV2.sol',
+        tool: 'Solidity — same storage layout as V1 + __gap slots',
+        why: 'Proves the V1→V2 upgrade path. Even a single new function is enough. Document storage layout to prove no collision.'
+      },
+      {
+        name: 'PositionNFT.sol',
+        tool: 'OpenZeppelin ERC721 (or ERC1155)',
+        why: 'Minted on vault deposit, burned on withdraw. Satisfies the ERC-721/1155 requirement with a protocol-native use case.'
+      },
+      {
+        name: 'YulMath.sol',
+        tool: 'Inline Yul assembly',
+        why: 'One math function (e.g. sqrt or mulDiv) in Yul. Keep the pure-Solidity equivalent commented above for benchmarking.'
+      },
+      {
+        name: 'ProtocolGovernor.sol',
+        tool: 'OZ Governor + GovernorVotes + GovernorVotesQuorumFraction + GovernorTimelockControl + GovernorCountingSimple + GovernorSettings',
+        why: 'Full Governor stack. 1-day voting delay, 1-week voting period, 4% quorum, 1% proposal threshold.'
+      },
+      {
+        name: 'ProtocolTimelock.sol',
+        tool: 'OpenZeppelin TimelockController',
+        why: '2-day delay. Owns the Treasury and all admin roles on protocol contracts. Transfer ownership here after deploy.'
+      },
+      {
+        name: 'Treasury.sol',
+        tool: 'Solidity · AccessControl · Pausable',
+        why: 'Holds protocol fees. Only Timelock can withdraw or change parameters.'
+      }
+    ]
+  },
+  {
+    id: 'tests',
+    label: 'Tests',
+    sectionClass: 'section-tests',
+    intro: 'Every test category with the tool to use. Total target: 80+ tests across the suite.',
+    items: [
+      {
+        name: 'Unit tests (50+ required)',
+        tool: 'Foundry forge-std/Test.sol',
+        why: 'One file per contract under test/unit/. Every public/external function covered, including every revert path.'
+      },
+      {
+        name: 'Fuzz tests (10+ required)',
+        tool: 'Foundry forge-std with randomized inputs',
+        why: 'AMM swap (k monotonicity), vault deposit/withdraw, voting power delegation, oracle staleness boundary conditions.'
+      },
+      {
+        name: 'Invariant tests (5+ required)',
+        tool: 'Foundry StdInvariant + handler contracts',
+        why: 'k never decreases on swap, totalSupply conservation, vault totalAssets ≥ sum of convertToAssets, treasury accounting, governance state machine.'
+      },
+      {
+        name: 'Fork tests (3+ required)',
+        tool: 'Foundry vm.createSelectFork — Arbitrum Sepolia RPC',
+        why: 'Hit real USDC (0x75fa…), real Chainlink ETH/USD feed, and optionally a real Uniswap V2 router on testnet.'
+      },
+      {
+        name: 'Reentrancy reproduction + fix',
+        tool: 'Solidity attacker contract + forge test',
+        why: 'Vulnerable version → exploit test → fixed version → regression test. Both versions kept in repo. Required in audit report.'
+      },
+      {
+        name: 'Access-control reproduction + fix',
+        tool: 'Foundry vm.prank as unauthorized caller',
+        why: 'Same pattern: vulnerable function → exploit → fix → regression. Second required case study in the audit report.'
+      },
+      {
+        name: 'Governance lifecycle end-to-end',
+        tool: 'Foundry with vm.warp to skip delays',
+        why: 'Propose → vote → queue → execute in a single test. Mandatory to demonstrate the full Governor flow.'
+      },
+      {
+        name: 'Coverage report (≥90% required)',
+        tool: 'forge coverage --report summary + lcov',
+        why: 'Run against contracts/ directory. Commit as coverage.md. CI must enforce the threshold.'
+      }
+    ]
+  },
+  {
+    id: 'frontend',
+    label: 'Frontend',
+    sectionClass: 'section-frontend',
+    intro: 'React app under frontend/. Every page and feature the UI rubric grades.',
+    items: [
+      {
+        name: 'Wallet connection',
+        tool: 'Wagmi + Viem + MetaMask connector · WalletConnect v2 (bonus)',
+        why: 'Required entry point. WalletConnect as a second connector earns extra marks.'
+      },
+      {
+        name: 'Network detection + switch prompt',
+        tool: 'Wagmi useChainId + switchChain',
+        why: 'Detect wrong chain, display a prompt to switch to Arbitrum Sepolia. Required by spec.'
+      },
+      {
+        name: 'Token balance + voting power display',
+        tool: 'Wagmi useReadContract on GovernanceToken',
+        why: 'Read balanceOf, getVotes, and delegates for the connected address. Must be visible in the UI.'
+      },
+      {
+        name: 'Delegate action',
+        tool: 'Wagmi useWriteContract → token.delegate()',
+        why: 'Users must delegate to themselves before they can vote. One-click action in the UI.'
+      },
+      {
+        name: 'Swap page',
+        tool: 'Wagmi write → ConstantProductAMM.swap · slippage input field',
+        why: 'State-changing tx #1. Reads pool reserves via subgraph, not directly from the contract.'
+      },
+      {
+        name: 'Vault deposit / withdraw page',
+        tool: 'Wagmi write → YieldVault.deposit / .withdraw',
+        why: 'State-changing tx #2. Shows user share balance and current exchange rate.'
+      },
+      {
+        name: 'Proposal list + vote page',
+        tool: 'Subgraph GraphQL query + Wagmi write → Governor.castVote',
+        why: 'State-changing tx #3. Renders status badges: Pending / Active / Succeeded / Defeated / Queued / Executed. Reads from subgraph.'
+      },
+      {
+        name: 'Error handling layer',
+        tool: 'Viem decodeErrorResult + toast notification library',
+        why: 'Map all RPC errors to readable messages. No raw errors shown. No silent failures. Required by spec.'
+      }
+    ]
+  },
+  {
+    id: 'subgraph',
+    label: 'Subgraph',
+    sectionClass: 'section-subgraph',
+    intro: 'Subgraph deployed to The Graph Studio, pointing at Arbitrum Sepolia contracts. Lives in subgraph/.',
+    items: [
+      {
+        name: 'schema.graphql',
+        tool: 'GraphQL schema syntax',
+        why: '4+ entities required. Suggested: Pool, Swap, VaultDeposit, Proposal, Vote, User. Define before writing mappings.'
+      },
+      {
+        name: 'subgraph.yaml',
+        tool: 'The Graph manifest format',
+        why: 'Points at deployed contract addresses on Arbitrum Sepolia. Lists every event handler. Update addresses after deploy.'
+      },
+      {
+        name: 'Mappings (AssemblyScript)',
+        tool: 'graph-cli + AssemblyScript',
+        why: 'One handler per event: Swap, Mint, Burn, Deposit, Withdraw, ProposalCreated, VoteCast, ProposalExecuted.'
+      },
+      {
+        name: '5 documented GraphQL queries',
+        tool: 'Markdown in subgraph/QUERIES.md',
+        why: 'Required deliverable. E.g. recent swaps, top LPs by volume, active proposals with tallies, user vault history, protocol TVL over time.'
+      },
+      {
+        name: 'Deployment to The Graph Studio',
+        tool: 'graph deploy via graph-cli',
+        why: 'Hosted endpoint URL goes in README.md and is consumed by the frontend proposal list and swap pages.'
+      }
+    ]
+  },
+  {
+    id: 'devops',
+    label: 'DevOps',
+    sectionClass: 'section-devops',
+    intro: 'Everything outside contracts and UI that the rubric grades. CI must be green on the final commit.',
+    items: [
+      {
+        name: 'GitHub repo (created before Week 6)',
+        tool: 'GitHub — main-branch protection enabled',
+        why: 'PRs required, CI green required to merge. Empty repo created at Week 10 = automatic failure per spec.'
+      },
+      {
+        name: 'CI pipeline',
+        tool: 'GitHub Actions YAML (.github/workflows/ci.yml)',
+        why: 'On every push + PR: forge build, forge test, forge coverage, Slither, forge fmt --check, solhint, prettier --check on frontend.'
+      },
+      {
+        name: 'Pre-commit hooks',
+        tool: 'Husky + lint-staged OR direct git hooks',
+        why: 'Catches formatting issues locally before CI. forge fmt --check + solhint + prettier.'
+      },
+      {
+        name: 'deploy.s.sol',
+        tool: 'Foundry Script.sol',
+        why: 'Idempotent, parameterized deployment. Deploys all contracts, wires Timelock as owner, reads oracle addresses from .env.'
+      },
+      {
+        name: 'verify.s.sol (post-deploy verification)',
+        tool: 'Foundry Script.sol',
+        why: 'Asserts: Timelock is owner of all protocol contracts, delay = 2 days, quorum = 4%, no EOA admin remains. Commit output to repo.'
+      },
+      {
+        name: 'Etherscan / Arbiscan verification',
+        tool: 'forge verify-contract with ARBISCAN_API_KEY',
+        why: 'All deployed contracts must be verified. Links go in README.'
+      },
+      {
+        name: 'Slither config',
+        tool: 'slither.config.json + pip install slither-analyzer',
+        why: 'Run in CI. Zero High, zero Medium at submission. Full output saved as appendix in the audit report.'
+      },
+      {
+        name: 'solhint + prettier configs',
+        tool: '.solhint.json · .prettierrc',
+        why: 'Style enforcement. Linting runs in the CI lint job. Formatters run in pre-commit hooks.'
+      }
+    ]
+  },
+  {
+    id: 'docs',
+    label: 'Documentation',
+    sectionClass: 'section-docs',
+    intro: 'All graded written deliverables. Live in docs/. Start filling these in as code stabilizes — not at the end.',
+    items: [
+      {
+        name: 'README.md',
+        tool: 'Markdown',
+        why: 'Deployed contract addresses, Arbiscan verification links, subgraph endpoint URL, local run instructions, screenshots.'
+      },
+      {
+        name: 'Architecture document (6+ pages)',
+        tool: 'Markdown + Mermaid / draw.io / PlantUML for diagrams',
+        why: 'C4 level 1 diagram, container diagram showing all contracts + roles + external deps, 3+ sequence diagrams (swap, propose-vote-execute, deposit-withdraw), storage layouts per upgradeable contract, trust assumptions, ADR log.'
+      },
+      {
+        name: 'Security audit report (8+ pages)',
+        tool: 'Markdown',
+        why: 'Executive summary, scope (commit hash), methodology, findings table (Critical/High/Medium/Low/Informational/Gas), per-finding detail, centralization analysis, governance attack analysis, oracle attack analysis, Slither output as appendix.'
+      },
+      {
+        name: 'Gas optimization report',
+        tool: 'Markdown table from forge --gas-report before/after',
+        why: 'Before/after benchmarks on each optimized function. L1 vs L2 comparison table for 6+ operations.'
+      },
+      {
+        name: 'Coverage report (committed to repo)',
+        tool: 'forge coverage output → coverage.md',
+        why: 'Required deliverable. Must show ≥90% line coverage on contracts/.'
+      },
+      {
+        name: 'Design patterns justification',
+        tool: 'Markdown section inside the architecture doc',
+        why: '5+ patterns from the spec list, each named, located in the codebase, and justified. Patterns without a real need are penalized.'
+      },
+      {
+        name: 'Presentation slide deck',
+        tool: 'Any tool (Google Slides, Keynote, etc.) — exported to PDF',
+        why: 'Final deliverable. Covers system architecture, live demo flow, security posture, and what you would do next.'
+      }
+    ]
+  },
+  {
+    id: 'addresses',
+    label: 'Arbitrum Sepolia',
+    sectionClass: 'section-addresses',
+    intro: 'External addresses and endpoints to wire into deploy scripts and tests. Verify each address before use.',
+    items: [
+      {
+        name: 'USDC',
+        tool: '0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d',
+        why: 'Use in fork tests and for real-asset lending/vault integration on Arbitrum Sepolia.'
+      },
+      {
+        name: 'Chainlink ETH/USD price feed',
+        tool: '0xd30e2101a97dcbAeBCBC04F14C3f624E67A35165',
+        why: 'Wire into ChainlinkPriceFeedAdapter. Confirm on docs.chain.link before use — testnet addresses can change.'
+      },
+      {
+        name: 'Block explorer',
+        tool: 'sepolia.arbiscan.io',
+        why: 'Contract verification target. Generate an API key here for use with forge verify-contract.'
+      },
+      {
+        name: 'RPC endpoint',
+        tool: 'Alchemy · Infura · arbitrum-sepolia.publicnode.com (public fallback)',
+        why: 'Required for forge script --rpc-url and fork test vm.createSelectFork.'
+      },
+      {
+        name: 'Faucet',
+        tool: 'Alchemy Arbitrum Sepolia faucet · or bridge ETH from Sepolia',
+        why: 'Fund deployer wallet with enough ETH before running deploy.s.sol.'
+      },
+      {
+        name: 'The Graph Studio',
+        tool: 'thegraph.com/studio',
+        why: 'Subgraph deployment target. Arbitrum Sepolia network is supported. Grab your deploy key here.'
+      }
+    ]
+  }
+];
+
+/* ══════════════════════════════════════
+   RENDER
+══════════════════════════════════════ */
+
+let activeId = 'contracts';
+
+const tabsEl   = document.getElementById('tabs');
+const contentEl = document.getElementById('content');
+
+// Build tab buttons
+sections.forEach((s, i) => {
+  const btn = document.createElement('button');
+  btn.className = 'tab-btn' + (i === 0 ? ' active' : '');
+  btn.textContent = s.label;
+  btn.dataset.id = s.id;
+  btn.setAttribute('aria-selected', i === 0 ? 'true' : 'false');
+  btn.addEventListener('click', () => switchTab(s.id));
+  tabsEl.appendChild(btn);
+});
+
+function switchTab(id) {
+  activeId = id;
+
+  // Update tab button states
+  tabsEl.querySelectorAll('.tab-btn').forEach(btn => {
+    const isActive = btn.dataset.id === id;
+    btn.classList.toggle('active', isActive);
+    btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
+  });
+
+  renderSection(id);
+}
+
+function renderSection(id) {
+  const s = sections.find(x => x.id === id);
+  contentEl.innerHTML = '';
+
+  // Wrapper with section class for CSS stripe color
+  const wrap = document.createElement('div');
+  wrap.className = s.sectionClass + ' anim-in';
+
+  // Intro paragraph
+  const intro = document.createElement('p');
+  intro.className = 'section-intro';
+  intro.textContent = s.intro;
+  wrap.appendChild(intro);
+
+  // Cards
+  s.items.forEach((item, idx) => {
+    const checkId = 'cb-' + s.id + '-' + idx;
+
+    const card = document.createElement('div');
+    card.className = 'card';
+
+    // Checkbox
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.className = 'card-check';
+    cb.id = checkId;
+
+    // Body
+    const body = document.createElement('div');
+    body.className = 'card-body';
+
+    const name = document.createElement('label');
+    name.className = 'card-name';
+    name.htmlFor = checkId;
+    name.textContent = item.name;
+
+    const tool = document.createElement('p');
+    tool.className = 'card-tool';
+    tool.textContent = item.tool;
+
+    const why = document.createElement('p');
+    why.className = 'card-why';
+    why.textContent = item.why;
+
+    body.appendChild(name);
+    body.appendChild(tool);
+    body.appendChild(why);
+
+    card.appendChild(cb);
+    card.appendChild(body);
+    wrap.appendChild(card);
+  });
+
+  contentEl.appendChild(wrap);
+
+  // Restore saved checkbox states after rendering new DOM
+  if (window.planState) {
+    window.planState.restore();
+    window.planState.updateProgress();
+  }
+
+  // Re-apply .done class to already-checked cards
+  wrap.querySelectorAll('.card-check:checked').forEach(cb => {
+    cb.closest('.card').classList.add('done');
+  });
+}
+
+// Reset button
+document.getElementById('reset-btn').addEventListener('click', () => {
+  if (confirm('Reset all progress? This cannot be undone.')) {
+    if (window.planState) window.planState.clearAll();
+    // Re-render current tab so .done classes are removed
+    renderSection(activeId);
+  }
+});
+
+// Initial render
+renderSection('contracts');
+</script>
+
+<!-- State persistence (localStorage) — must load AFTER the render script above -->
+<script src="plan-state.js"></script>
+
+<!-- Re-restore after plan-state.js boots, because renderSection ran first -->
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    if (window.planState) {
+      window.planState.restore();
+      window.planState.updateProgress();
+      document.querySelectorAll('.card-check:checked').forEach(function (cb) {
+        var card = cb.closest('.card');
+        if (card) card.classList.add('done');
+      });
+    }
+  });
+</script>
+
+</body>
+</html>
